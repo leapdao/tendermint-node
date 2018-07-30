@@ -83,7 +83,7 @@ function setupChildProcess (child, rpcPort) {
     },
     synced: () => {
       if (synced) return synced
-      synced = waitForSync(rpc)
+      synced = waitForSync(rpc, false)
       return synced
     }
   })
@@ -104,9 +104,8 @@ let waitForRpc = wait(async (client) => {
 
 let waitForSync = wait(async (client) => {
   let status = await client.status()
-  return true
   return (
-    // status.sync_info.syncing === false &&
+    status.sync_info.catching_up === false &&
     status.sync_info.latest_block_height > 0
   )
 })
@@ -115,9 +114,11 @@ function wait (condition) {
   return async function (client, timeout = 30 * 1000) {
     let start = Date.now()
     while (true) {
-      let elapsed = Date.now() - start
-      if (elapsed > timeout) {
-        throw Error('Timed out while waiting')
+      if (timeout) {
+        let elapsed = Date.now() - start
+        if (elapsed > timeout) {
+          throw Error('Timed out while waiting')
+        }
       }
 
       try {
