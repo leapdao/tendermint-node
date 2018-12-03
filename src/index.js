@@ -5,7 +5,9 @@ let _spawn = require('cross-spawn')
 let { RpcClient } = require('tendermint')
 let flags = require('./flags.js')
 
-const binPath = require.resolve('../bin/tendermint')
+const logging = process.env.TM_LOG
+const binPath = process.env.TM_BINARY ||
+  require.resolve('../bin/tendermint')
 
 function exec (command, opts, sync) {
   let args = [ command, ...flags(opts) ]
@@ -19,12 +21,19 @@ function spawn (command, opts) {
   let args = [ command, ...flags(opts) ]
   debug('spawning: tendermint ' + args.join(' '))
   let child = _spawn(binPath, args)
+
   setTimeout(() => {
     try {
       child.stdout.resume()
       child.stderr.resume()
     } catch (err) {}
   }, 4000)
+
+  if (logging) {
+    child.stdout.pipe(process.stdout)
+    child.stderr.pipe(process.stderr)
+  }
+
   let promise = new Promise((resolve, reject) => {
     child.once('exit', resolve)
     child.once('error', reject)
@@ -55,16 +64,20 @@ function node (path, opts = {}) {
   return setupChildProcess(child, rpcPort)
 }
 
-function lite (target, path, opts = {}) {
+function lite (target, chainId, path, opts = {}) {
   if (typeof target !== 'string') {
     throw Error('"target" argument is required')
+  }
+  if (typeof chainId !== 'string') {
+    throw Error('"chainId" argument is required')
   }
   if (typeof path !== 'string') {
     throw Error('"path" argument is required')
   }
 
   opts.node = target
-  opts.home = path
+  opts['chain-id'] = chainId
+  opts['home-dir'] = path
   let child = spawn('lite', opts)
   let rpcPort = getRpcPort(opts, 8888)
   return setupChildProcess(child, rpcPort)
@@ -78,18 +91,18 @@ function setupChildProcess (child, rpcPort) {
     rpc,
     started: () => {
       if (started) return started
-      started = waitForRpc(rpc)
+      started = waitForRpc(rpc, child)
       return started
     },
     synced: () => {
       if (synced) return synced
-      synced = waitForSync(rpc, false)
+      synced = waitForSync(rpc, child)
       return synced
     }
   })
 }
 
-function getRpcPort (opts, defaultPort = 46657) {
+function getRpcPort (opts, defaultPort = 26657) {
   if (!opts || ((!opts.rpc || !opts.rpc.laddr) && !opts.laddr)) {
     return defaultPort
   }
@@ -106,12 +119,12 @@ let waitForSync = wait(async (client) => {
   let status = await client.status()
   return (
     status.sync_info.catching_up === false &&
-    status.sync_info.latest_block_height > 0
+    Number(status.sync_info.latest_block_height) > 0
   )
-})
+}, null, 0)
 
 function wait (condition) {
-  return async function (client, timeout = 30 * 1000) {
+  return async function (client, child, timeout = 30 * 1000) {
     let start = Date.now()
     while (true) {
       if (timeout) {
