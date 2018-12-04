@@ -96,7 +96,7 @@ function setupChildProcess (child, rpcPort) {
     },
     synced: () => {
       if (synced) return synced
-      synced = waitForSync(rpc, child)
+      synced = waitForSync(rpc, child, 0)
       return synced
     }
   })
@@ -121,7 +121,7 @@ let waitForSync = wait(async (client) => {
     status.sync_info.catching_up === false &&
     Number(status.sync_info.latest_block_height) > 0
   )
-}, null, 0)
+})
 
 function wait (condition) {
   return async function (client, child, timeout = 30 * 1000) {
