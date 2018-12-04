@@ -73,7 +73,7 @@ get(binaryDownloadUrl, { responseType: 'stream' }).then((res) => {
     let shasums = readFileSync(shasumPath).toString()
     let expectedHash
     for (let line of shasums.split('\n')) {
-      let [ shasum, filename ] = line.split(' ')
+      let [ shasum, filename ] = line.split(/\s+/)
       if (binaryDownloadUrl.includes(filename)) {
         expectedHash = shasum
         break
@@ -81,7 +81,7 @@ get(binaryDownloadUrl, { responseType: 'stream' }).then((res) => {
     }
 
     if (actualHash !== expectedHash) {
-      console.error('ERROR: hash of downloaded tendermint binary did not match')
+      console.error('ERROR: hash of downloaded tendermint binary did not match. Got %s, expected %s', actualHash, expectedHash)
       process.exit(1)
     }
 
