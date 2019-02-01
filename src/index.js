@@ -91,7 +91,7 @@ function setupChildProcess (child, rpcPort) {
     rpc,
     started: () => {
       if (started) return started
-      started = waitForRpc(rpc, child)
+      started = waitForRpc(rpc, child, 0)
       return started
     },
     synced: () => {
